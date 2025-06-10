@@ -5,7 +5,6 @@ namespace TechLibrary.Exception;
 public class ErrorOnValidationException : TechLibraryException
 {
     private readonly List<string> _errors;
-
     public ErrorOnValidationException(List<string> errorMessages)
     {
         _errors = errorMessages;
@@ -16,6 +15,6 @@ public class ErrorOnValidationException : TechLibraryException
         return _errors;
     } 
 
-    public override HttpStatusCode GetHttpStatusCode() => HttpStatusCode.BadRequest;
+    public override HttpStatusCode GetStatusCode() => HttpStatusCode.BadRequest;
 
 }

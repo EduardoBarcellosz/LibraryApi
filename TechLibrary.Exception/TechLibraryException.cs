@@ -5,6 +5,6 @@ namespace TechLibrary.Exception
     public abstract class TechLibraryException : SystemException
     {
         public abstract List<string> GetErrorsMessages();
-        public abstract HttpStatusCode GetHttpStatusCode();
+        public abstract HttpStatusCode GetStatusCode();
     }
 }
