@@ -1,16 +1,35 @@
 ﻿using TechLibrary.Api.Infrastructure.DataAccess;
+using TechLibrary.Api.Services.LoggedUser;
 using TechLibrary.Exception;
 
 namespace TechLibrary.Api.UseCases.Checkouts
 {
     public class RegisterBookCheckoutUseCase
     {
+        private const int MAX_LOAN_DAYS = 14; 
+
+        private readonly LoggedUserService _loggedUser;
+        public RegisterBookCheckoutUseCase(LoggedUserService loggedUser)
+        {
+            _loggedUser = loggedUser;
+        }
+
         public void Execute(Guid bookId)
         {
             var dbContext = new TechLibraryDbContext();
+
             Validate(dbContext, bookId);
 
-            dbContext.Checkouts.Add(new Domain.Entities.Checkout { BookId = bookId, CheckoutDate = DateTime.UtcNow });
+            var user = _loggedUser.User(dbContext);
+
+            var entity = new Domain.Entities.Checkout
+            {
+                UserId = user.Id,
+                BookId = bookId,
+                ExpectedReturnDate = DateTime.UtcNow.AddDays(MAX_LOAN_DAYS) 
+            };
+
+            dbContext.Checkouts.Add(entity);
 
             dbContext.SaveChanges();
         }
@@ -26,10 +45,10 @@ namespace TechLibrary.Api.UseCases.Checkouts
 
             var amountBookNotReturned = dbContext
                 .Checkouts
-                .Count(checkout => checkout.BookId == bookId && checkout.ReturnDate == null);
+                .Count(checkout => checkout.BookId == bookId && checkout.ReturnedDate == null);
             if(amountBookNotReturned == book.Amount)
             {
-                throw new System.Exception("All copies of this book are currently checked out. Please try again later.");
+                throw new ConflictException("Livro não está disponível.");
             }
         }
     }
