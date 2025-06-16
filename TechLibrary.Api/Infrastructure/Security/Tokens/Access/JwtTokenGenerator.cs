@@ -18,7 +18,7 @@ namespace TechLibrary.Api.Infrastructure.Security.Tokens.Access
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Expires = DateTime.UtcNow.AddMinutes(60),
-                Subject = new ClaimsIdentity(),
+                Subject = new ClaimsIdentity(claims),
                 SigningCredentials = new SigningCredentials(SecurityKey(), SecurityAlgorithms.HmacSha256Signature)
             };
 

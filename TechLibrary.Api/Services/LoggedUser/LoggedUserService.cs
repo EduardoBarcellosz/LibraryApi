@@ -26,7 +26,6 @@ public class LoggedUserService
         var subClaim = jwtSecurityToken.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub);
         if (subClaim == null)
         {
-            // Trate o erro: claim não encontrada
             throw new System.Exception("Claim 'sub' não encontrada no token.");
         }
         var identifier = subClaim.Value;
