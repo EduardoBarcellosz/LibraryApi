@@ -6,7 +6,7 @@ namespace TechLibrary.Api.UseCases.Checkouts
 {
     public class RegisterBookCheckoutUseCase
     {
-        private const int MAX_LOAN_DAYS = 14; 
+        private const int MAX_LOAN_DAYS = 14;
 
         private readonly LoggedUserService _loggedUser;
         public RegisterBookCheckoutUseCase(LoggedUserService loggedUser)
@@ -26,10 +26,20 @@ namespace TechLibrary.Api.UseCases.Checkouts
             {
                 UserId = user.Id,
                 BookId = bookId,
-                ExpectedReturnDate = DateTime.UtcNow.AddDays(MAX_LOAN_DAYS) 
+                ExpectedReturnDate = DateTime.UtcNow.AddDays(MAX_LOAN_DAYS)
             };
 
             dbContext.Checkouts.Add(entity);
+
+            // Se o usuário tinha uma reserva ativa para este livro, marcar como atendida
+            var userReservation = dbContext.Reservations
+                .FirstOrDefault(r => r.BookId == bookId && r.UserId == user.Id && r.IsActive);
+
+            if (userReservation is not null)
+            {
+                userReservation.IsActive = false;
+                userReservation.FulfilledDate = DateTime.UtcNow;
+            }
 
             dbContext.SaveChanges();
         }
@@ -46,7 +56,7 @@ namespace TechLibrary.Api.UseCases.Checkouts
             var amountBookNotReturned = dbContext
                 .Checkouts
                 .Count(checkout => checkout.BookId == bookId && checkout.ReturnedDate == null);
-            if(amountBookNotReturned == book.Amount)
+            if (amountBookNotReturned == book.Amount)
             {
                 throw new ConflictException("Livro não está disponível.");
             }

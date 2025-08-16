@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using TechLibrary.Api.Services.LoggedUser;
 using TechLibrary.Api.UseCases.Books.Filter;
 using TechLibrary.Communication.Requests;
 using TechLibrary.Communication.Responses;
@@ -10,11 +11,18 @@ namespace TechLibrary.Api.Controllers
     public class BooksController : ControllerBase
     {
         [HttpGet("Filter")]
-        [ProducesResponseType(typeof(ResponseBooksJson),StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ResponseBooksJson), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public IActionResult Filter(int pageNumber, string? title)
         {
-            var useCase = new FilterBookUseCase();
+            // Tentar obter o usuário logado se estiver autenticado
+            LoggedUserService? loggedUser = null;
+            if (HttpContext.User.Identity?.IsAuthenticated == true)
+            {
+                loggedUser = new LoggedUserService(HttpContext);
+            }
+
+            var useCase = new FilterBookUseCase(loggedUser);
 
             var request = new RequestFilterBooksJson
             {
@@ -24,10 +32,8 @@ namespace TechLibrary.Api.Controllers
 
             var result = useCase.Execute(request);
 
-            if (result.Books.Count > 0)
-                return Ok(result);
-            
-            return NoContent();
+            // Sempre retornar 200 com estrutura consistente (lista pode estar vazia)
+            return Ok(result);
         }
     }
 }

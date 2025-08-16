@@ -1,22 +1,22 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TechLibrary.Api.Services.LoggedUser;
-using TechLibrary.Api.UseCases.Checkouts;
+using TechLibrary.Api.UseCases.Reservations;
 
 namespace TechLibrary.Api.Controllers
 {
     [Route("[controller]")]
     [ApiController]
     [Authorize]
-    public class CheckoutsController : ControllerBase
+    public class ReservationsController : ControllerBase
     {
         [HttpPost]
         [Route("{bookId}")]
-        public IActionResult BookCheckout(Guid bookId)
+        public IActionResult CreateReservation(Guid bookId)
         {
             var loggedUser = new LoggedUserService(HttpContext);
 
-            var useCase = new RegisterBookCheckoutUseCase(loggedUser);
+            var useCase = new CreateReservationUseCase(loggedUser);
 
             useCase.Execute(bookId);
 
@@ -24,26 +24,26 @@ namespace TechLibrary.Api.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetUserCheckouts()
+        public IActionResult GetUserReservations()
         {
             var loggedUser = new LoggedUserService(HttpContext);
 
-            var useCase = new GetUserCheckoutsUseCase(loggedUser);
+            var useCase = new GetUserReservationsUseCase(loggedUser);
 
             var response = useCase.Execute();
 
             return Ok(response);
         }
 
-        [HttpPut]
-        [Route("return/{checkoutId}")]
-        public IActionResult ReturnBook(Guid checkoutId)
+        [HttpDelete]
+        [Route("{reservationId}")]
+        public IActionResult CancelReservation(Guid reservationId)
         {
             var loggedUser = new LoggedUserService(HttpContext);
 
-            var useCase = new ReturnBookUseCase(loggedUser);
+            var useCase = new CancelReservationUseCase(loggedUser);
 
-            useCase.Execute(checkoutId);
+            useCase.Execute(reservationId);
 
             return NoContent();
         }

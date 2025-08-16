@@ -1,14 +1,31 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using TechLibrary.Api.Filters;
+using TechLibrary.Api.Infrastructure.DataAccess;
 
 const string AUTHENTICATION_TYPE = "Bearer";
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+
+// Configurar Entity Framework
+builder.Services.AddDbContext<TechLibraryDbContext>();
+
+// Configurar CORS para permitir requisições do frontend
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173", "http://localhost:3000", "https://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 
 builder.Services.AddOpenApi();
 
@@ -63,6 +80,117 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 var app = builder.Build();
 
+// Garantir que o banco de dados e as tabelas existam
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<TechLibraryDbContext>();
+    db.Database.EnsureCreated();
+
+    // Garantir que a tabela Reservations exista no SQLite do banco legado
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""Reservations"" (
+                ""Id"" TEXT NOT NULL UNIQUE,
+                ""ReservationDate"" TEXT NOT NULL,
+                ""UserId"" TEXT NOT NULL,
+                ""BookId"" TEXT NOT NULL,
+                ""ExpirationDate"" TEXT NOT NULL,
+                ""IsActive"" INTEGER NOT NULL,
+                ""CancelledDate"" TEXT,
+                ""FulfilledDate"" TEXT,
+                FOREIGN KEY(""BookId"") REFERENCES ""Books""(""Id""),
+                FOREIGN KEY(""UserId"") REFERENCES ""Users""(""Id""),
+                PRIMARY KEY(""Id"")
+            );
+        ");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Startup] Falha ao garantir tabela Reservations: {ex}");
+    }
+
+    // Garantir que colunas novas existam na tabela Checkouts em bancos antigos (sem migrações),
+    // verificando via PRAGMA para evitar erros de duplicidade
+    try
+    {
+        var connection = db.Database.GetDbConnection();
+        connection.Open();
+
+        bool ColumnExists(string table, string column)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = $"PRAGMA table_info(\"{table}\");";
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                // PRAGMA table_info retorna: cid (0), name (1), type (2), notnull (3), dflt_value (4), pk (5)
+                var name = reader.GetString(1);
+                if (string.Equals(name, column, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        string GetSqliteVersion()
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "select sqlite_version();";
+            var result = cmd.ExecuteScalar()?.ToString() ?? "";
+            return result;
+        }
+
+        bool IsSqliteDropColumnSupported()
+        {
+            // DROP COLUMN suportado a partir do SQLite 3.35.0
+            var versionText = GetSqliteVersion();
+            if (Version.TryParse(versionText, out var version))
+            {
+                var min = new Version(3, 35, 0);
+                return version >= min;
+            }
+            return false;
+        }
+
+        if (!ColumnExists("Checkouts", "ExpectedReturnDate"))
+        {
+            db.Database.ExecuteSqlRaw(@"
+                ALTER TABLE ""Checkouts"" 
+                ADD COLUMN ""ExpectedReturnDate"" TEXT NOT NULL DEFAULT (datetime('now','+14 days'));
+            ");
+        }
+
+        if (!ColumnExists("Checkouts", "ReturnedDate"))
+        {
+            db.Database.ExecuteSqlRaw(@"
+                ALTER TABLE ""Checkouts"" 
+                ADD COLUMN ""ReturnedDate"" TEXT NULL;
+            ");
+        }
+
+        // Se por algum motivo existir a coluna equivocada BookId1 nas Reservations, tentar removê-la
+        if (ColumnExists("Reservations", "BookId1"))
+        {
+            if (IsSqliteDropColumnSupported())
+            {
+                db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Reservations"" DROP COLUMN ""BookId1"";");
+            }
+            else
+            {
+                Console.WriteLine("[Startup] Encontrada coluna Reservations.BookId1, mas a versão do SQLite não suporta DROP COLUMN (< 3.35). Ignorando.");
+            }
+        }
+
+        connection.Close();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Startup] Falha ao ajustar colunas do banco legado: {ex}");
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -73,6 +201,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// Habilitar CORS
+app.UseCors("AllowFrontend");
+
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

@@ -9,6 +9,13 @@ public class ExceptionFilter : IExceptionFilter
 {
     public void OnException(ExceptionContext context)
     {
+        // Logar detalhes no console para facilitar o diagnóstico em desenvolvimento
+        try
+        {
+            System.Console.WriteLine($"[Exception] {DateTime.UtcNow:o}\n{context.Exception}");
+        }
+        catch { }
+
         if (context.Exception is TechLibraryException techLibraryException)
         {
             context.HttpContext.Response.StatusCode = (int)techLibraryException.GetStatusCode();
@@ -20,9 +27,11 @@ public class ExceptionFilter : IExceptionFilter
         else
         {
             context.HttpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            // Expor a mensagem real durante o desenvolvimento para facilitar o diagnóstico
+            var message = context.Exception?.Message ?? "Erro desconhecido!";
             context.Result = new ObjectResult(new ResponseErrorMessagesJson
             {
-                Errors = ["Erro desconhecido!"]
+                Errors = [message]
             });
         }
     }

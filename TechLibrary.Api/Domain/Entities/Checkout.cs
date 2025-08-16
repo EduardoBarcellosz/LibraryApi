@@ -7,6 +7,10 @@
         public Guid UserId { get; set; }
         public Guid BookId { get; set; }
         public DateTime ExpectedReturnDate { get; set; }
-        public DateTime? ReturnedDate { get; set; } 
+        public DateTime? ReturnedDate { get; set; }
+
+        // Navigation properties
+        public Book? Book { get; set; }
+        public User? User { get; set; }
     }
 }
