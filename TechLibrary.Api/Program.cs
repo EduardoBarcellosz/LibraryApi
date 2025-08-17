@@ -95,7 +95,7 @@ using (var scope = app.Services.CreateScope())
                 ""ReservationDate"" TEXT NOT NULL,
                 ""UserId"" TEXT NOT NULL,
                 ""BookId"" TEXT NOT NULL,
-                ""ExpirationDate"" TEXT NOT NULL,
+                ""ExpectedReturnDate"" TEXT NOT NULL,
                 ""IsActive"" INTEGER NOT NULL,
                 ""CancelledDate"" TEXT,
                 ""FulfilledDate"" TEXT,
@@ -110,7 +110,7 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($"[Startup] Falha ao garantir tabela Reservations: {ex}");
     }
 
-    // Garantir que colunas novas existam na tabela Checkouts em bancos antigos (sem migrações),
+    // Garantir que colunas novas existam em bancos antigos (sem migrações),
     // verificando via PRAGMA para evitar erros de duplicidade
     try
     {
@@ -124,7 +124,6 @@ using (var scope = app.Services.CreateScope())
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                // PRAGMA table_info retorna: cid (0), name (1), type (2), notnull (3), dflt_value (4), pk (5)
                 var name = reader.GetString(1);
                 if (string.Equals(name, column, StringComparison.OrdinalIgnoreCase))
                 {
@@ -154,6 +153,19 @@ using (var scope = app.Services.CreateScope())
             return false;
         }
 
+        bool IsSqliteRenameColumnSupported()
+        {
+            // RENAME COLUMN suportado a partir do SQLite 3.25.0
+            var versionText = GetSqliteVersion();
+            if (Version.TryParse(versionText, out var version))
+            {
+                var min = new Version(3, 25, 0);
+                return version >= min;
+            }
+            return false;
+        }
+
+        // Ajustes na tabela Checkouts
         if (!ColumnExists("Checkouts", "ExpectedReturnDate"))
         {
             db.Database.ExecuteSqlRaw(@"
@@ -168,6 +180,40 @@ using (var scope = app.Services.CreateScope())
                 ALTER TABLE ""Checkouts"" 
                 ADD COLUMN ""ReturnedDate"" TEXT NULL;
             ");
+        }
+
+        // Ajuste da coluna ExpectedReturnDate em Reservations (antiga ExpirationDate)
+        if (!ColumnExists("Reservations", "ExpectedReturnDate"))
+        {
+            var hasOldExpiration = ColumnExists("Reservations", "ExpirationDate");
+            if (hasOldExpiration)
+            {
+                if (IsSqliteRenameColumnSupported())
+                {
+                    try
+                    {
+                        db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Reservations"" RENAME COLUMN ""ExpirationDate"" TO ""ExpectedReturnDate"";");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Startup] Falha ao renomear coluna ExpirationDate -> ExpectedReturnDate: {ex}. Tentando estratégia alternativa.");
+                        // Estratégia alternativa: adicionar e copiar
+                        db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Reservations"" ADD COLUMN ""ExpectedReturnDate"" TEXT NOT NULL DEFAULT (datetime('now')); ");
+                        db.Database.ExecuteSqlRaw(@"UPDATE ""Reservations"" SET ""ExpectedReturnDate"" = ""ExpirationDate"" WHERE ""ExpirationDate"" IS NOT NULL;");
+                    }
+                }
+                else
+                {
+                    // Adicionar nova coluna e copiar dados da antiga
+                    db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Reservations"" ADD COLUMN ""ExpectedReturnDate"" TEXT NOT NULL DEFAULT (datetime('now')); ");
+                    db.Database.ExecuteSqlRaw(@"UPDATE ""Reservations"" SET ""ExpectedReturnDate"" = ""ExpirationDate"" WHERE ""ExpirationDate"" IS NOT NULL;");
+                }
+            }
+            else
+            {
+                // Não existe nenhuma das duas -> adicionar diretamente
+                db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Reservations"" ADD COLUMN ""ExpectedReturnDate"" TEXT NOT NULL DEFAULT (datetime('now')); ");
+            }
         }
 
         // Se por algum motivo existir a coluna equivocada BookId1 nas Reservations, tentar removê-la

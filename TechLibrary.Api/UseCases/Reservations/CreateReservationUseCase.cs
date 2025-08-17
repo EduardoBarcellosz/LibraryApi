@@ -6,8 +6,6 @@ namespace TechLibrary.Api.UseCases.Reservations
 {
     public class CreateReservationUseCase
     {
-        private const int RESERVATION_EXPIRATION_DAYS = 3; // Reserva expira em 3 dias
-
         private readonly LoggedUserService _loggedUser;
 
         public CreateReservationUseCase(LoggedUserService loggedUser)
@@ -23,11 +21,17 @@ namespace TechLibrary.Api.UseCases.Reservations
 
             var user = _loggedUser.User(dbContext);
 
+            var expectedReturnDate = dbContext.Checkouts
+                .Where(c => c.BookId == bookId && c.ReturnedDate == null)
+                .OrderBy(c => c.ExpectedReturnDate)
+                .Select(c => c.ExpectedReturnDate)
+                .FirstOrDefault();
+
             var entity = new Domain.Entities.Reservation
             {
                 UserId = user.Id,
                 BookId = bookId,
-                ExpirationDate = DateTime.UtcNow.AddDays(RESERVATION_EXPIRATION_DAYS)
+                ExpectedReturnDate = expectedReturnDate
             };
 
             dbContext.Reservations.Add(entity);

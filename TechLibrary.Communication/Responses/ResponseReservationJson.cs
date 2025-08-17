@@ -8,7 +8,7 @@ namespace TechLibrary.Communication.Responses
         public Guid BookId { get; set; }
         public string BookTitle { get; set; } = string.Empty;
         public string BookAuthor { get; set; } = string.Empty;
-        public DateTime ExpirationDate { get; set; }
+        public DateTime ReturnExpectedDate { get; set; }
         public bool IsActive { get; set; }
         public DateTime? CancelledDate { get; set; }
         public DateTime? FulfilledDate { get; set; }

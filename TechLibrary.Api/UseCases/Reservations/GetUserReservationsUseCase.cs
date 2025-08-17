@@ -29,9 +29,9 @@ namespace TechLibrary.Api.UseCases.Reservations
 
             foreach (var reservation in reservations)
             {
-                var isExpired = reservation.IsActive && DateTime.UtcNow > reservation.ExpirationDate;
+                var isExpired = reservation.IsActive && DateTime.UtcNow > reservation.ExpectedReturnDate;
                 var daysUntilExpiration = reservation.IsActive
-                    ? (reservation.ExpirationDate - DateTime.UtcNow).Days
+                    ? (reservation.ExpectedReturnDate - DateTime.UtcNow).Days
                     : 0;
 
                 // Cálculo da previsão de disponibilidade:
@@ -67,7 +67,7 @@ namespace TechLibrary.Api.UseCases.Reservations
                     BookId = reservation.BookId,
                     BookTitle = reservation.Book?.Title ?? string.Empty,
                     BookAuthor = reservation.Book?.Author ?? string.Empty,
-                    ExpirationDate = reservation.ExpirationDate,
+                    ReturnExpectedDate = reservation.ExpectedReturnDate,
                     IsActive = reservation.IsActive,
                     CancelledDate = reservation.CancelledDate,
                     FulfilledDate = reservation.FulfilledDate,
