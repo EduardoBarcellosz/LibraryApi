@@ -34,6 +34,31 @@ namespace TechLibrary.Api.UseCases.Reservations
                     ? (reservation.ExpirationDate - DateTime.UtcNow).Days
                     : 0;
 
+                // Cálculo da previsão de disponibilidade:
+                // Se já existe exemplar livre (loans ativos < Amount) então agora.
+                // Caso contrário, pega a menor ExpectedReturnDate entre os empréstimos ativos.
+                DateTime predictedAvailabilityDate;
+                if (reservation.Book is null)
+                {
+                    predictedAvailabilityDate = DateTime.UtcNow; // fallback
+                }
+                else
+                {
+                    var activeLoans = dbContext.Checkouts
+                        .Where(c => c.BookId == reservation.BookId && c.ReturnedDate == null)
+                        .Select(c => c.ExpectedReturnDate)
+                        .ToList();
+
+                    if (activeLoans.Count < reservation.Book.Amount)
+                    {
+                        predictedAvailabilityDate = DateTime.UtcNow; // já disponível
+                    }
+                    else
+                    {
+                        predictedAvailabilityDate = activeLoans.Min();
+                    }
+                }
+
                 response.Reservations.Add(new ResponseReservationJson
                 {
                     Id = reservation.Id,
@@ -47,7 +72,8 @@ namespace TechLibrary.Api.UseCases.Reservations
                     CancelledDate = reservation.CancelledDate,
                     FulfilledDate = reservation.FulfilledDate,
                     IsExpired = isExpired,
-                    DaysUntilExpiration = Math.Max(0, daysUntilExpiration)
+                    DaysUntilExpiration = Math.Max(0, daysUntilExpiration),
+                    
                 });
             }
 

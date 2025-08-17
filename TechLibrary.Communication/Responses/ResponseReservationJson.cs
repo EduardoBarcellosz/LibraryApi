@@ -14,5 +14,7 @@ namespace TechLibrary.Communication.Responses
         public DateTime? FulfilledDate { get; set; }
         public bool IsExpired { get; set; }
         public int DaysUntilExpiration { get; set; }
+        // Nova informação: previsão de quando haverá pelo menos um exemplar disponível
+        public DateTime PredictedAvailabilityDate { get; set; }
     }
 }

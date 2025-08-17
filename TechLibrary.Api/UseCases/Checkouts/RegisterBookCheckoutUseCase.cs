@@ -22,6 +22,13 @@ namespace TechLibrary.Api.UseCases.Checkouts
 
             var user = _loggedUser.User(dbContext);
 
+            // Verifica se o usuário já possui um empréstimo ativo deste mesmo livro
+            var userAlreadyHasActiveLoan = dbContext.Checkouts.Any(c => c.BookId == bookId && c.UserId == user.Id && c.ReturnedDate == null);
+            if (userAlreadyHasActiveLoan)
+            {
+                throw new ConflictException("Usuário já possui este livro em empréstimo ativo.");
+            }
+
             var entity = new Domain.Entities.Checkout
             {
                 UserId = user.Id,
